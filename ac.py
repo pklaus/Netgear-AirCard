@@ -59,9 +59,9 @@ class AirCard(object):
 def main():
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--ip', default='192.168.170.1', help='IP Address of the AirCard')
-    parser.add_argument('--password', '-p', default='webadmin', help='Admin Password.')
     parser.add_argument('--no-login', '-n', action='store_true', help="Don't log in to the router")
+    parser.add_argument('--password', '-p', default='webadmin', help='Admin Password.')
+    parser.add_argument('--ip', default='192.168.170.1', help='IP Address of the AirCard')
 
     if not ext_deps: parser.error("Missing at least one of the python modules 'requests' or 'beautifulsoup4'.")
 
