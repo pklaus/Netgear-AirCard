@@ -10,6 +10,7 @@ try:
     ext_deps = True
 except ImportError:
     ext_deps = False
+import sys
 import json
 import urllib
 
@@ -21,7 +22,14 @@ class AirCard(object):
         self.start_session()
 
     def start_session(self):
-        r = requests.get(urllib.parse.urljoin(self.base_url, '/index.html'))
+        url = urllib.parse.urljoin(self.base_url, '/index.html')
+        try:
+            r = requests.get(url, timeout=3)
+        except requests.exceptions.ConnectTimeout:
+            raise AirCardException()
+        # If you try to get a URL without providing a session ID, you will be
+        # redirected twice and the first redirect sets the cookie. Use the
+        # requests history to get the cookie from that first request:
         self.cookies = r.history[0].cookies
 
     def login(self):
@@ -47,13 +55,16 @@ class AirCard(object):
 
     def post(self, url, *args, **kwargs):
         url = urllib.parse.urljoin(self.base_url, url)
-        kwargs.update({'cookies': self.cookies})
+        kwargs.update({'timeout': 3, 'cookies': self.cookies})
         return requests.post(url, *args, **kwargs)
 
     def get(self, url, *args, **kwargs):
         url = urllib.parse.urljoin(self.base_url, url)
-        kwargs.update({'cookies': self.cookies})
+        kwargs.update({'timeout': 3, 'cookies': self.cookies})
         return requests.get(url, *args, **kwargs)
+
+class AirCardException(Exception):
+    pass
 
 def main():
     import argparse
@@ -66,7 +77,11 @@ def main():
 
     args = parser.parse_args()
 
-    ac = AirCard(ip=args.ip, password=args.password)
+    try:
+        ac = AirCard(ip=args.ip, password=args.password)
+    except AirCardException:
+        sys.stderr.write("Couldn't connect to the IP {}.\n".format(args.ip))
+        sys.exit(1)
     if not args.no_login: ac.login()
     print(ac.detailed_info())
     print(json.dumps(ac.get_model(), sort_keys=True, indent=2, separators=(',', ': ')))
