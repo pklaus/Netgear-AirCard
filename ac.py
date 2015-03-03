@@ -11,7 +11,6 @@ try:
 except ImportError:
     ext_deps = False
 import json
-from pprint import pprint
 import urllib
 
 class AirCard(object):
@@ -70,7 +69,7 @@ def main():
     ac = AirCard(ip=args.ip, password=args.password)
     if not args.no_login: ac.login()
     print(ac.detailed_info())
-    pprint(ac.get_model())
+    print(json.dumps(ac.get_model(), sort_keys=True, indent=2, separators=(',', ': ')))
 
 if __name__ == "__main__":
     main()
