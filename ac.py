@@ -13,20 +13,25 @@ except ImportError:
 import sys
 import json
 import urllib
+import random
+import time
 
 class AirCard(object):
-    def __init__(self, ip="192.168.170.1", password='webadmin'):
-        self.ip = ip
+    def __init__(self, host="netgear.aircard", password='password'):
+        self.timeout = 3
+        self.host = host
         self.password = password
-        self.base_url = 'http://{}/'.format(self.ip)
+        self.base_url = 'http://{}/'.format(self.host)
+        self.calls = 0
         self.start_session()
 
     def start_session(self):
         url = urllib.parse.urljoin(self.base_url, '/index.html')
         try:
-            r = requests.get(url, timeout=3)
+            r = requests.get(url, timeout=self.timeout)
         except requests.exceptions.ConnectTimeout:
             raise AirCardException()
+        self.calls += 1
         # If you try to get a URL without providing a session ID, you will be
         # redirected twice and the first redirect sets the cookie. Use the
         # requests history to get the cookie from that first request:
@@ -42,25 +47,21 @@ class AirCard(object):
         }
         r = self.post('/Forms/config', data=login_data)
 
-    def detailed_info(self):
-        idx_page = BeautifulSoup(self.get('/index.html').text)
-        try:
-            return idx_page.select('textarea#about_text')[0].text
-        except IndexError:
-            return None
-
     def get_model(self):
-        r = self.get('/api/model.json')
+        r = self.get('/api/model.json', params=dict(internalapi=1, x=random.randint(0,99999)))
+        #r = self.get('/api/model.json')
         return json.loads(r.text)
 
     def post(self, url, *args, **kwargs):
+        self.calls += 1
         url = urllib.parse.urljoin(self.base_url, url)
-        kwargs.update({'timeout': 3, 'cookies': self.cookies})
+        kwargs.update({'timeout': self.timeout, 'cookies': self.cookies})
         return requests.post(url, *args, **kwargs)
 
     def get(self, url, *args, **kwargs):
+        self.calls += 1
         url = urllib.parse.urljoin(self.base_url, url)
-        kwargs.update({'timeout': 3, 'cookies': self.cookies})
+        kwargs.update({'timeout': self.timeout, 'cookies': self.cookies})
         return requests.get(url, *args, **kwargs)
 
 class AirCardException(Exception):
@@ -70,21 +71,22 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--no-login', '-n', action='store_true', help="Don't log in to the router")
-    parser.add_argument('--password', '-p', default='webadmin', help='Admin Password.')
-    parser.add_argument('--ip', default='192.168.170.1', help='IP Address of the AirCard')
+    parser.add_argument('--password', '-p', default='password', help='Admin Password.')
+    parser.add_argument('host', default='netgear.aircard', nargs='?', help='Host name/IP Address of the AirCard')
 
     if not ext_deps: parser.error("Missing at least one of the python modules 'requests' or 'beautifulsoup4'.")
 
     args = parser.parse_args()
 
     try:
-        ac = AirCard(ip=args.ip, password=args.password)
+        ac = AirCard(host=args.host, password=args.password)
     except AirCardException:
-        sys.stderr.write("Couldn't connect to the IP {}.\n".format(args.ip))
+        sys.stderr.write("Couldn't connect to the IP {}.\n".format(args.host))
         sys.exit(1)
     if not args.no_login: ac.login()
-    print(ac.detailed_info())
+    #start = time.perf_counter()
     print(json.dumps(ac.get_model(), sort_keys=True, indent=2, separators=(',', ': ')))
+    #sys.stderr.write('time to call get_model(): {}'.format(time.perf_counter() - start))
 
 if __name__ == "__main__":
     main()
