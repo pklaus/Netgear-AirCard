@@ -14,6 +14,7 @@ import numpy as np
 import collections
 import time
 import pprint
+from IPython import embed
 
 HINTS = """
 print('\n'.join(gdf.columns))
@@ -43,6 +44,31 @@ plt.show()
 
 gdf.ix[:,['wwanadv_rxLevel','wwanadv_txLevel']].plot()
 plt.show()
+
+numeric_columns = ('wwan_dataTransferredRx', 'wwan_dataTransferredTx')
+for numeric_column in numeric_columns:
+    gdf[numeric_column] = gdf[numeric_column].convert_objects(convert_numeric=True)
+
+# MiBs transferred
+(gdf.ix[:,['wwan_dataTransferredRx', 'wwan_dataTransferredTx']] / 1024**2).plot()
+plt.show()
+
+# Calculate Timedeltas
+gdf['ts'] = gdf.index
+gdf['ts_delta'] = (gdf['ts']-gdf['ts'].shift())
+#gdf['ts_delta'] = gdf['ts_delta'].fillna(0)
+gdf['ts_delta'] /= np.timedelta64(1,'s')
+
+# MBit/s
+df = gdf.ix[:,['wwan_dataTransferredRx', 'wwan_dataTransferredTx']]
+df = (df / 1024.0**2).diff() * 8
+df['wwan_dataTransferredRx'] = df['wwan_dataTransferredRx'] / gdf['ts_delta']
+df['wwan_dataTransferredTx'] = df['wwan_dataTransferredTx'] / gdf['ts_delta']
+df['wwan_dataTransferredRx'][df['wwan_dataTransferredRx'] < 0] = float('nan')
+df['wwan_dataTransferredTx'][df['wwan_dataTransferredTx'] < 0] = float('nan')
+df.plot()
+plt.show()
+
 """
 
 def flatten(d, parent_key='', sep='_'):
@@ -63,8 +89,11 @@ def main():
 
     gdf = pd.DataFrame()
     for fname in glob.glob(sys.argv[1] + '/*.json'):
-        f = open(fname, 'r')
-        context = json.loads(f.read())
+        try:
+            f = open(fname, 'r')
+            context = json.loads(f.read())
+        except Exception as e:
+            print("could not read the file {}:\n{}".format(fname, str(e)))
         f.close()
         #context = munch.Munch.fromDict(context)
         fcontext = flatten(context)
@@ -74,8 +103,12 @@ def main():
         del fcontext['wwan_bandRegion']
         del fcontext['sms_msgs']
         #pprint.pprint(fcontext)
-        df = pd.DataFrame.from_dict(fcontext)
-        gdf = gdf.append(df)
+        #embed()
+        try:
+            df = pd.DataFrame.from_dict(fcontext)
+            gdf = gdf.append(df)
+        except Exception as e:
+            print(e)
     gdf = gdf.set_index(gdf.general_currTime.apply(dt.fromtimestamp))
     for col in gdf.columns:
         try:
@@ -91,7 +124,7 @@ def main():
             print(descr)
             print('-------------')
     print(HINTS)
-    import pdb; pdb.set_trace()
+    embed()
 
 if __name__ == "__main__":
     main()
